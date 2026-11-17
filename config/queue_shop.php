@@ -5,6 +5,11 @@ return [
     'call_window_seconds' => (int) env('SHOP_CALL_WINDOW_SECONDS', 30),
     'reminder_lead_seconds' => (int) env('SHOP_REMINDER_LEAD_SECONDS', 60),
     'default_country_code' => env('SHOP_COUNTRY_CODE', '60'),
+    'admin' => [
+        'name' => env('ADMIN_NAME', 'Owner'),
+        'email' => env('ADMIN_EMAIL', 'owner@example.com'),
+        'password' => env('ADMIN_PASSWORD'),
+    ],
     'verify_phone' => (bool) env('SHOP_VERIFY_PHONE', true),
     'booking' => [
         'open_time' => env('SHOP_OPEN_TIME', '10:00'),

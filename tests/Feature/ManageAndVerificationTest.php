@@ -13,6 +13,8 @@ use App\Services\ShopSettings;
 use App\Services\Whatsapp\CloudApiWhatsappSender;
 use App\Services\Whatsapp\WhatsappSender;
 use Carbon\CarbonImmutable;
+use Database\Seeders\AdminSeeder;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
@@ -199,4 +201,36 @@ it('falls back to a template when WhatsApp rejects free-form text', function () 
 
     Http::assertSentCount(2);
     Http::assertSent(fn ($request) => ($request['type'] ?? null) === 'template' && $request['template']['name'] === 'shop_notification');
+});
+
+it('creates the admin from env settings and lets them log in', function () {
+    config(['queue_shop.admin' => ['name' => 'Boss', 'email' => 'boss@kd.test', 'password' => 'S3cret-pass']]);
+
+    $this->seed(AdminSeeder::class);
+
+    $admin = User::firstWhere('email', 'boss@kd.test');
+    expect($admin->name)->toBe('Boss')->and(Hash::check('S3cret-pass', $admin->password))->toBeTrue();
+
+    Livewire::test('pages::login')->set('email', 'boss@kd.test')->set('password', 'S3cret-pass')->call('login')->assertHasNoErrors();
+    $this->assertAuthenticatedAs($admin);
+});
+
+it('resets the admin password when seeded again and never duplicates', function () {
+    config(['queue_shop.admin' => ['name' => 'Boss', 'email' => 'boss@kd.test', 'password' => 'old-pass-1']]);
+    $this->seed(AdminSeeder::class);
+
+    config(['queue_shop.admin.password' => 'new-pass-2']);
+    $this->seed(AdminSeeder::class);
+
+    expect(User::where('email', 'boss@kd.test')->count())->toBe(1)
+        ->and(Hash::check('new-pass-2', User::firstWhere('email', 'boss@kd.test')->password))->toBeTrue();
+});
+
+it('refuses to seed an admin without a password in production', function () {
+    app()->detectEnvironment(fn () => 'production');
+    config(['queue_shop.admin' => ['name' => 'Boss', 'email' => 'boss@kd.test', 'password' => null]]);
+
+    $this->seed(AdminSeeder::class);
+
+    expect(User::where('email', 'boss@kd.test')->exists())->toBeFalse();
 });
