@@ -14,6 +14,8 @@ new #[Layout('layouts::app')] #[Title('Book online')] class extends Component {
 
     public int $step = 1;
 
+    public string $month = '';
+
     public ?int $serviceId = null;
 
     public ?int $barberId = null;
@@ -32,6 +34,7 @@ new #[Layout('layouts::app')] #[Title('Book online')] class extends Component {
     {
         $this->serviceId = Service::where('is_active', true)->orderBy('price')->value('id');
         $this->date = today()->toDateString();
+        $this->month = today()->format('Y-m');
 
         $service = $this->serviceId ? Service::find($this->serviceId) : null;
         if ($service) {
@@ -39,6 +42,7 @@ new #[Layout('layouts::app')] #[Title('Book online')] class extends Component {
                 $day = today()->addDays($offset);
                 if ($bookings->availableSlots($day, $service)->isNotEmpty()) {
                     $this->date = $day->toDateString();
+                    $this->month = $day->format('Y-m');
                     break;
                 }
             }
@@ -75,6 +79,45 @@ new #[Layout('layouts::app')] #[Title('Book online')] class extends Component {
         }
 
         $this->step = min(3, $this->step + 1);
+    }
+
+    public function previousMonth(): void
+    {
+        $previous = CarbonImmutable::parse($this->month.'-01')->subMonth();
+
+        if ($previous->endOfMonth()->gte(today())) {
+            $this->month = $previous->format('Y-m');
+        }
+    }
+
+    public function nextMonth(): void
+    {
+        $next = CarbonImmutable::parse($this->month.'-01')->addMonth();
+
+        if ($next->lte(today()->addDays(config('queue_shop.booking.max_advance_days')))) {
+            $this->month = $next->format('Y-m');
+        }
+    }
+
+    public function selectDate(string $date, BookingService $bookings): void
+    {
+        $day = CarbonImmutable::parse($date);
+        $last = today()->addDays(config('queue_shop.booking.max_advance_days'));
+
+        if ($day->lt(today()) || $day->gt($last)) {
+            return;
+        }
+
+        if ($reason = $bookings->closedReason($day)) {
+            $this->addError('date', "We're closed on {$day->format('j M')} ({$reason}).");
+
+            return;
+        }
+
+        $this->resetErrorBag('date');
+        $this->date = $day->toDateString();
+        $this->month = $day->format('Y-m');
+        $this->time = '';
     }
 
     public function back(): void
@@ -134,6 +177,40 @@ new #[Layout('layouts::app')] #[Title('Book online')] class extends Component {
         $this->redirect(route('home'), navigate: true);
     }
 
+    /**
+     * Month grid (Monday first), leaving out weeks that are entirely in the past.
+     * Each day is open, closed (with reason), past or beyond the booking window.
+     *
+     * @return array<int, array{date: string, day: int, inMonth: bool, state: string, reason: ?string}>
+     */
+    private function buildCalendar(BookingService $bookings): array
+    {
+        $first = CarbonImmutable::parse($this->month.'-01');
+        $start = $first->startOfWeek(CarbonImmutable::MONDAY);
+        $end = $first->endOfMonth()->endOfWeek(CarbonImmutable::SUNDAY);
+        $last = today()->addDays(config('queue_shop.booking.max_advance_days'));
+        $closed = $bookings->closedDates(max($start, today()), min($end, $last));
+
+        $days = [];
+        for ($day = $start; $day->lte($end); $day = $day->addDay()) {
+            $key = $day->toDateString();
+            $state = match (true) {
+                $day->lt(today()) => 'past',
+                $day->gt($last) => 'far',
+                isset($closed[$key]) => 'closed',
+                default => 'open',
+            };
+            $days[] = ['date' => $key, 'day' => $day->day, 'inMonth' => $day->month === $first->month, 'state' => $state, 'reason' => $closed[$key] ?? null];
+        }
+
+        $weeks = array_filter(
+            array_chunk($days, 7),
+            fn (array $week) => collect($week)->contains(fn (array $day) => $day['state'] !== 'past'),
+        );
+
+        return array_merge(...array_values($weeks));
+    }
+
     public function with(BookingService $bookings): array
     {
         $service = $this->serviceId ? Service::find($this->serviceId) : null;
@@ -141,15 +218,15 @@ new #[Layout('layouts::app')] #[Title('Book online')] class extends Component {
         $closedReason = $date ? $bookings->closedReason($date) : null;
 
         return [
+            'calendar' => $this->step === 2 ? $this->buildCalendar($bookings) : [],
             'services' => Service::where('is_active', true)->orderBy('price')->get(),
             'barbers' => Barber::orderBy('name')->get(),
             'service' => $service,
             'barber' => $this->barberId ? Barber::find($this->barberId) : null,
             'closedReason' => $closedReason,
-            'slots' => ($this->step === 2 && $service && $date && ! $closedReason)
+            'timeSlots' => ($this->step === 2 && $service && $date && ! $closedReason)
                 ? $bookings->availableSlots($date, $service, $this->barberId ? Barber::find($this->barberId) : null)
                 : collect(),
-            'maxDate' => today()->addDays(config('queue_shop.booking.max_advance_days'))->toDateString(),
             'steps' => [1 => 'Service', 2 => 'Date & time', 3 => 'Your details'],
         ];
     }
@@ -206,33 +283,81 @@ new #[Layout('layouts::app')] #[Title('Book online')] class extends Component {
                     </div>
                 </section>
             @elseif ($step === 2)
-                <section wire:key="step-2" class="card space-y-5">
-                    <h2 class="display text-2xl">Pick a day and time</h2>
-                    <div>
-                        <label class="label">Date</label>
-                        <input type="date" wire:model.live="date" min="{{ today()->toDateString() }}" max="{{ $maxDate }}" class="input">
+                @php($monthStart = \Carbon\CarbonImmutable::parse($month.'-01'))
+                @php($canGoBack = $monthStart->subMonth()->endOfMonth()->gte(today()))
+                @php($canGoForward = $monthStart->addMonth()->lte(today()->addDays(config('queue_shop.booking.max_advance_days'))))
+                <section wire:key="step-2" class="space-y-6">
+                    <div class="card space-y-4">
+                        <h2 class="display text-2xl">Pick a day</h2>
+
+                        <div class="flex items-center justify-between">
+                            <button type="button" wire:click="previousMonth" @disabled(! $canGoBack) class="btn-secondary btn-sm px-4" aria-label="Previous month">&larr;</button>
+                            <p class="display text-xl">{{ $monthStart->format('F Y') }}</p>
+                            <button type="button" wire:click="nextMonth" @disabled(! $canGoForward) class="btn-secondary btn-sm px-4" aria-label="Next month">&rarr;</button>
+                        </div>
+
+                        <div class="grid grid-cols-7 gap-1.5 text-center text-xs font-semibold uppercase tracking-wider text-muted">
+                            @foreach (['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $dow)
+                                <span wire:key="dow-{{ $dow }}">{{ $dow }}</span>
+                            @endforeach
+                        </div>
+
+                        <div class="grid grid-cols-7 gap-1.5">
+                            @foreach ($calendar as $cell)
+                                @php($selected = $cell['date'] === $date)
+                                <button type="button" wire:key="day-{{ $cell['date'] }}" data-date="{{ $cell['date'] }}" data-state="{{ $cell['state'] }}"
+                                    @if ($cell['state'] === 'open') wire:click="selectDate('{{ $cell['date'] }}')" @else disabled @endif
+                                    @if ($cell['reason']) title="{{ $cell['reason'] }}" @endif
+                                    class="relative aspect-square rounded-xl text-sm font-semibold transition
+                                        {{ ! $cell['inMonth'] ? 'opacity-30' : '' }}
+                                        {{ $selected ? 'bg-brass-400 text-ink-950' : '' }}
+                                        {{ ! $selected && $cell['state'] === 'open' ? 'border border-ink-600 bg-ink-800 hover:border-brass-400' : '' }}
+                                        {{ $cell['state'] === 'closed' ? 'cursor-not-allowed border border-bad/30 bg-bad/10 text-bad/70 line-through' : '' }}
+                                        {{ in_array($cell['state'], ['past', 'far'], true) ? 'cursor-not-allowed text-ink-600' : '' }}
+                                        {{ $cell['date'] === today()->toDateString() && ! $selected ? 'ring-1 ring-brass-400/60' : '' }}">
+                                    {{ $cell['day'] }}
+                                </button>
+                            @endforeach
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted">
+                            <span class="flex items-center gap-2"><span class="size-3 rounded border border-ink-600 bg-ink-800"></span> Available</span>
+                            <span class="flex items-center gap-2"><span class="size-3 rounded border border-bad/30 bg-bad/10"></span> Shop closed</span>
+                            <span class="flex items-center gap-2"><span class="size-3 rounded bg-brass-400"></span> Selected</span>
+                        </div>
                         @error('date') <p class="error">{{ $message }}</p> @enderror
                     </div>
 
-                    @if ($closedReason)
-                        <div class="rounded-xl border border-bad/30 bg-bad/10 p-4 text-bad">
-                            <p class="font-semibold">We're closed on this day: {{ $closedReason }}.</p>
-                            <p class="mt-1 text-sm opacity-80">Please pick another date.</p>
+                    <div class="card space-y-4">
+                        <div class="flex flex-wrap items-baseline justify-between gap-2">
+                            <h2 class="display text-2xl">Pick a time</h2>
+                            <p class="text-sm text-muted">{{ \Carbon\CarbonImmutable::parse($date)->format('l, j F') }}</p>
                         </div>
-                    @else
-                        <div>
-                            <label class="label">Available times</label>
-                            <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                                @forelse ($slots as $slot)
-                                    <button type="button" wire:key="slot-{{ $slot->format('Hi') }}" wire:click="$set('time', '{{ $slot->format('H:i') }}')"
-                                        class="rounded-xl border px-2 py-2.5 text-sm font-semibold transition {{ $time === $slot->format('H:i') ? 'border-brass-400 bg-brass-400 text-ink-950' : 'border-ink-600 bg-ink-800 hover:border-brass-500/60' }}">{{ $slot->format('g:i A') }}</button>
-                                @empty
-                                    <p class="col-span-full text-sm text-muted">No free times on this day. Try another date or barber.</p>
-                                @endforelse
+
+                        @if ($closedReason)
+                            <div class="rounded-xl border border-bad/30 bg-bad/10 p-4 text-bad">
+                                <p class="font-semibold">We're closed on this day: {{ $closedReason }}.</p>
+                                <p class="mt-1 text-sm opacity-80">Please pick another date.</p>
                             </div>
-                            @error('time') <p class="error">{{ $message }}</p> @enderror
-                        </div>
-                    @endif
+                        @elseif ($timeSlots->isEmpty())
+                            <p class="rounded-xl border border-ink-700 bg-ink-800/60 p-4 text-sm text-muted">No free times on this day. Try another date or barber.</p>
+                        @else
+                            @foreach (['Morning' => $timeSlots->filter(fn ($s) => $s->hour < 12), 'Afternoon' => $timeSlots->filter(fn ($s) => $s->hour >= 12 && $s->hour < 17), 'Evening' => $timeSlots->filter(fn ($s) => $s->hour >= 17)] as $label => $group)
+                                @if ($group->isNotEmpty())
+                                    <div wire:key="grp-{{ $label }}">
+                                        <p class="label">{{ $label }}</p>
+                                        <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                                            @foreach ($group as $slot)
+                                                <button type="button" wire:key="slot-{{ $slot->format('Hi') }}" wire:click="$set('time', '{{ $slot->format('H:i') }}')"
+                                                    class="rounded-xl border px-2 py-2.5 text-sm font-semibold transition {{ $time === $slot->format('H:i') ? 'border-brass-400 bg-brass-400 text-ink-950' : 'border-ink-600 bg-ink-800 hover:border-brass-500/60' }}">{{ $slot->format('g:i A') }}</button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+                            @endforeach
+                        @endif
+                        @error('time') <p class="error">{{ $message }}</p> @enderror
+                    </div>
                 </section>
             @else
                 <section wire:key="step-3" class="space-y-6">

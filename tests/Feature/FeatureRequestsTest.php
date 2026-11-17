@@ -263,3 +263,55 @@ it('lists customers with points first, highest on top, without typing', function
         ->set('filter', 'all')->assertSee('Zero')
         ->set('filter', 'points')->set('search', 'zero')->assertSee('Zero');
 });
+
+// ---- Booking calendar
+
+it('greys out closed days, weekly closures and past days on the booking calendar', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-17 09:00')); // Tuesday
+    Barber::factory()->create();
+    Service::factory()->create();
+    ShopClosure::factory()->create(['closed_on' => '2026-11-22', 'reason' => 'Hari Raya']); // Sunday
+    app(ShopSettings::class)->setWeeklyClosedDays([1]); // Mondays
+
+    Livewire::test('pages::book')->call('next')
+        ->assertSeeHtml('data-date="2026-11-22" data-state="closed"')   // specific closure
+        ->assertSeeHtml('data-date="2026-11-23" data-state="closed"')   // a Monday
+        ->assertSeeHtml('data-date="2026-11-16" data-state="past"')     // yesterday
+        ->assertSeeHtml('data-date="2026-11-18" data-state="open"')
+        ->assertSee('Hari Raya');
+});
+
+it('refuses to select a closed day from the calendar and clears the time on a valid pick', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-17 09:00'));
+    Barber::factory()->create();
+    Service::factory()->create();
+    ShopClosure::factory()->create(['closed_on' => '2026-11-22', 'reason' => 'Hari Raya']);
+
+    Livewire::test('pages::book')->call('next')
+        ->set('date', '2026-11-18')->set('time', '11:00')
+        ->call('selectDate', '2026-11-22')->assertSet('date', '2026-11-18')->assertHasErrors('date')
+        ->call('selectDate', '2026-11-16')->assertSet('date', '2026-11-18')
+        ->call('selectDate', '2026-11-19')->assertSet('date', '2026-11-19')->assertSet('time', '')->assertHasNoErrors();
+});
+
+it('limits calendar navigation to the booking window', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-17 09:00'));
+    Barber::factory()->create();
+    Service::factory()->create();
+
+    Livewire::test('pages::book')->call('next')
+        ->assertSet('month', '2026-11')
+        ->call('previousMonth')->assertSet('month', '2026-11')
+        ->call('nextMonth')->assertSet('month', '2026-12')
+        ->call('nextMonth')->assertSet('month', '2027-01')
+        ->call('nextMonth')->assertSet('month', '2027-01'); // 60-day window ends mid-January
+});
+
+it('groups the available times into morning, afternoon and evening', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-11-17 09:00'));
+    Barber::factory()->create();
+    Service::factory()->create();
+
+    Livewire::test('pages::book')->set('date', '2026-11-18')->call('next')
+        ->assertSee('Morning')->assertSee('Afternoon')->assertSee('Evening')->assertSee('11:00 AM')->assertSee('7:30 PM');
+});

@@ -37,6 +37,30 @@ class BookingService
     }
 
     /**
+     * Closed dates (Y-m-d => reason) between two dates inclusive, for drawing a calendar in one query.
+     *
+     * @return array<string, string>
+     */
+    public function closedDates(CarbonInterface $from, CarbonInterface $to): array
+    {
+        $specific = ShopClosure::whereBetween('closed_on', [$from->toDateString(), $to->toDateString()])->get()
+            ->mapWithKeys(fn (ShopClosure $c) => [$c->closed_on->toDateString() => $c->reason ?: 'Shop closed']);
+        $weekly = $this->settings->weeklyClosedDays();
+
+        $closed = [];
+        for ($day = CarbonImmutable::parse($from->toDateString()); $day->lte($to); $day = $day->addDay()) {
+            $key = $day->toDateString();
+            if ($specific->has($key)) {
+                $closed[$key] = $specific[$key];
+            } elseif (in_array($day->dayOfWeek, $weekly, true)) {
+                $closed[$key] = 'Closed on '.$day->format('l').'s';
+            }
+        }
+
+        return $closed;
+    }
+
+    /**
      * Free start times on a date. With no barber chosen, a slot is free when any barber is free.
      *
      * @return Collection<int, CarbonImmutable>
