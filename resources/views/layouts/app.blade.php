@@ -12,5 +12,6 @@
 </head>
 <body class="min-h-screen">
     {{ $slot }}
+    <x-toast />
 </body>
 </html>

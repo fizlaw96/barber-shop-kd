@@ -200,6 +200,30 @@ class BookingService
     }
 
     /**
+     * Close the shop every week on the given weekdays and cancel + notify upcoming bookings on them.
+     *
+     * @param  array<int, int>  $weekdays  Carbon day numbers (0 = Sunday)
+     * @return int number of bookings cancelled
+     */
+    public function closeWeekdays(array $weekdays): int
+    {
+        $this->settings->setWeeklyClosedDays([...$this->settings->weeklyClosedDays(), ...$weekdays]);
+
+        $affected = Booking::where('status', BookingStatus::Booked)->where('starts_at', '>', now())
+            ->with('customer')->get()
+            ->filter(fn (Booking $b) => in_array($b->starts_at->dayOfWeek, $weekdays, true));
+
+        $affected->each(fn (Booking $b) => $this->cancel($b, notify: true, reason: 'closed every '.$b->starts_at->format('l')));
+
+        return $affected->count();
+    }
+
+    public function reopenWeekday(int $weekday): void
+    {
+        $this->settings->setWeeklyClosedDays(array_diff($this->settings->weeklyClosedDays(), [$weekday]));
+    }
+
+    /**
      * Release bookings whose customer is more than the grace period late.
      */
     public function releaseNoShows(): int

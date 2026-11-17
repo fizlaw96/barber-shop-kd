@@ -56,10 +56,11 @@ new #[Layout('layouts::app')] #[Title('Join the queue')] class extends Component
 
     <div class="flex flex-1 flex-col justify-center gap-6 py-8">
         @if ($ticket)
+            <div class="space-y-6" x-data="{ left: 10 }" x-init="const timer = setInterval(() => { left--; if (left <= 0) { clearInterval(timer); $wire.resetForm(); } }, 1000)">
             @php($isCalled = $ticket->status === \App\Enums\QueueTicketStatus::Called)
             <section class="card space-y-3 p-8 text-center {{ $isCalled ? 'calling border-ok' : '' }}">
                 <p class="eyebrow">Your number</p>
-                <p class="display text-9xl leading-none text-brass-400">#{{ $ticket->number }}</p>
+                <p class="display text-9xl leading-none text-brass-400">{{ $ticket->display_number }}</p>
                 <div>
                     @if ($isCalled)
                         <span class="badge-ok text-base">It's your turn</span>
@@ -85,7 +86,8 @@ new #[Layout('layouts::app')] #[Title('Join the queue')] class extends Component
                 <p class="display text-3xl text-brass-400">{{ $ticket->customer->points }}<span class="text-lg text-muted">/{{ \App\Models\Customer::POINTS_FOR_FREE_CUT }}</span></p>
             </section>
 
-            <button wire:click="resetForm" class="btn-ghost mx-auto">Register another number</button>
+            <button wire:click="resetForm" class="btn-ghost mx-auto">Next customer &middot; back to registration in <span x-text="left" class="mx-1 tabular-nums"></span>s</button>
+            </div>
         @else
             <div class="space-y-2">
                 <h1 class="display text-4xl">Get in line</h1>

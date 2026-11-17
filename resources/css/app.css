@@ -143,3 +143,7 @@
 .calling {
     animation: call-pulse 1.6s ease-out infinite;
 }
+
+[x-cloak] {
+    display: none !important;
+}

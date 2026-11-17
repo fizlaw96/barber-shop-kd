@@ -34,9 +34,15 @@ new #[Layout('layouts::app')] #[Title('Queue board')] class extends Component {
             @php($called = $ticket?->status === QueueTicketStatus::Called)
             <div wire:key="barber-{{ $barber->id }}" class="card flex flex-col items-center gap-2 p-8 {{ $called ? 'calling border-ok' : '' }}">
                 <p class="text-2xl font-semibold text-muted">{{ $barber->name }}</p>
-                <p class="display text-[9rem] leading-none {{ $ticket ? 'text-brass-400' : 'text-ink-600' }}">{{ $ticket ? $ticket->number : '—' }}</p>
+                <p class="display text-[9rem] leading-none {{ $ticket ? 'text-brass-400' : 'text-ink-600' }}">{{ $ticket ? $ticket->display_number : '—' }}</p>
                 @if ($called)
-                    <span class="badge-ok px-5 py-2 text-xl">Please come now</span>
+                    @php($remaining = max(0, (int) ceil(now()->diffInSeconds($ticket->call_expires_at, false))))
+                    <div wire:key="cd-{{ $ticket->id }}" class="w-full space-y-3 text-center"
+                        x-data="{ left: {{ $remaining }}, total: {{ config('queue_shop.call_window_seconds') }}, init() { const end = Date.now() + this.left * 1000; const timer = setInterval(() => { this.left = Math.max(0, Math.ceil((end - Date.now()) / 1000)); if (this.left <= 0) clearInterval(timer); }, 250); } }">
+                        <span class="badge-ok px-5 py-2 text-xl">Please come now</span>
+                        <p class="display text-6xl tabular-nums" :class="left <= 10 ? 'text-bad' : 'text-ok'"><span x-text="left"></span><span class="text-3xl text-muted">s</span></p>
+                        <div class="h-2 overflow-hidden rounded-full bg-ink-700"><div class="h-full rounded-full transition-all duration-300" :class="left <= 10 ? 'bg-bad' : 'bg-ok'" :style="`width: ${(left / total) * 100}%`"></div></div>
+                    </div>
                 @elseif ($ticket)
                     <span class="badge-brass px-5 py-2 text-lg">In the chair</span>
                 @else
@@ -50,7 +56,7 @@ new #[Layout('layouts::app')] #[Title('Queue board')] class extends Component {
         <p class="eyebrow mb-4 text-base">Next in line</p>
         <div class="flex flex-wrap gap-3">
             @forelse ($waiting as $number)
-                <span wire:key="w-{{ $number }}" class="display rounded-2xl border border-ink-600 bg-ink-800 px-7 py-3 text-5xl">{{ $number }}</span>
+                <span wire:key="w-{{ $number }}" class="display rounded-2xl border border-ink-600 bg-ink-800 px-7 py-3 text-5xl">{{ \App\Models\QueueTicket::formatNumber($number) }}</span>
             @empty
                 <p class="display text-3xl text-muted">No one waiting &mdash; walk right in.</p>
             @endforelse

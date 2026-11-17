@@ -111,15 +111,13 @@ it('lets staff change opening hours which the booking engine uses', function () 
     $service = Service::factory()->create();
 
     Livewire::test('pages::manage')
-        ->set('openTime', '12:00')->set('closeTime', '14:00')->set('minutesPerCut', 25)->set('weeklyClosedDays', [3])
+        ->set('openTime', '12:00')->set('closeTime', '14:00')->set('minutesPerCut', 25)
         ->call('saveSettings')->assertHasNoErrors();
 
     $settings = app(ShopSettings::class);
     expect($settings->openTime())->toBe('12:00')->and($settings->minutesPerCut())->toBe(25);
 
-    $wednesday = CarbonImmutable::parse('next wednesday');
-    $thursday = $wednesday->addDay();
-    expect(app(BookingService::class)->availableSlots($wednesday, $service))->toBeEmpty();
+    $thursday = CarbonImmutable::parse('next thursday');
 
     $slots = app(BookingService::class)->availableSlots($thursday, $service)->map->format('H:i');
     expect($slots->first())->toBe('12:00')->and($slots->last())->toBe('13:30');

@@ -152,7 +152,7 @@ it('registers a walk-in through the page', function () {
         ->set('phone', '0123456789')
         ->call('join')
         ->assertHasNoErrors()
-        ->assertSee('#1');
+        ->assertSee('001');
 });
 
 it('validates the phone on the walk-in page', function () {

@@ -143,7 +143,9 @@ it('books through the public page', function () {
         ->set('phone', '0123456789')
         ->call('submit')
         ->assertHasNoErrors()
-        ->assertSee('booked');
+        ->assertRedirect(route('home'));
+
+    expect(session('toast'))->toContain('Booking sent');
 
     expect(Booking::count())->toBe(1)->and(Customer::first()->name)->toBe('Ali');
 });
@@ -151,7 +153,7 @@ it('books through the public page', function () {
 it('shows a closed message on the booking page', function () {
     ShopClosure::factory()->create(['closed_on' => $this->tomorrow, 'reason' => 'Hari Raya']);
 
-    Livewire::test('pages::book')->set('date', $this->tomorrow->toDateString())->assertSee('closed on this day');
+    Livewire::test('pages::book')->set('step', 2)->set('date', $this->tomorrow->toDateString())->assertSee('closed on this day');
 });
 
 it('lets staff manage bookings and closed days but not guests', function () {

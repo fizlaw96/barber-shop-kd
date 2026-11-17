@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\QueueTicket;
 use App\Services\Whatsapp\WhatsappSender;
 use Carbon\CarbonInterface;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -34,25 +35,40 @@ class QueueService
             return $existing;
         }
 
-        $ticket = DB::transaction(function () use ($customer): QueueTicket {
-            $next = (int) QueueTicket::today()->lockForUpdate()->max('number') + 1;
-
-            return QueueTicket::create([
-                'customer_id' => $customer->id,
-                'queue_date' => today(),
-                'number' => $next,
-                'status' => QueueTicketStatus::Waiting,
-            ]);
-        });
+        $ticket = $this->issueTicket($customer);
 
         $this->notify($ticket, sprintf(
-            'Hi %s! Your queue number is #%d. Estimated wait: about %d min. We will message you 1 minute before your turn.',
+            'Hi %s! Your queue number is %s. Estimated wait: about %d min. We will message you 1 minute before your turn.',
             $customer->name ?? 'there',
-            $ticket->number,
+            $ticket->display_number,
             $this->estimatedWaitMinutes($ticket),
         ));
 
         return $ticket;
+    }
+
+    /**
+     * Next number of the day. The unique (queue_date, number) index guarantees no duplicates,
+     * so a concurrent registration that loses the race simply retries with the next number.
+     */
+    private function issueTicket(Customer $customer): QueueTicket
+    {
+        $attempts = 0;
+
+        while (true) {
+            try {
+                return DB::transaction(fn (): QueueTicket => QueueTicket::create([
+                    'customer_id' => $customer->id,
+                    'queue_date' => today(),
+                    'number' => (int) QueueTicket::today()->max('number') + 1,
+                    'status' => QueueTicketStatus::Waiting,
+                ]));
+            } catch (UniqueConstraintViolationException $e) {
+                if (++$attempts >= 5) {
+                    throw $e;
+                }
+            }
+        }
     }
 
     public function activeTicketFor(Customer $customer): ?QueueTicket
@@ -80,8 +96,8 @@ class QueueService
             ]);
 
             $this->notify($ticket, sprintf(
-                "It's your turn! Queue #%d - please come to %s within %d seconds.",
-                $ticket->number,
+                "It's your turn! Queue %s - please come to %s within %d seconds.",
+                $ticket->display_number,
                 $barber->name,
                 config('queue_shop.call_window_seconds'),
             ), force: true);
@@ -144,7 +160,7 @@ class QueueService
     public function burn(QueueTicket $ticket): QueueTicket
     {
         $ticket->update(['status' => QueueTicketStatus::Burned]);
-        $this->notify($ticket, sprintf('Queue #%d missed the call and was released. Please register again if you still want a cut.', $ticket->number), force: true);
+        $this->notify($ticket, sprintf('Queue %s missed the call and was released. Please register again if you still want a cut.', $ticket->display_number), force: true);
 
         return $ticket;
     }
@@ -175,7 +191,7 @@ class QueueService
             ->whereNull('reminded_at')->with('customer')->orderBy('number')->get()
             ->each(function (QueueTicket $ticket) use ($starts, $threshold, &$sent): void {
                 if (isset($starts[$ticket->id]) && $starts[$ticket->id]->lte($threshold)) {
-                    $this->notify($ticket, sprintf('Heads up! Queue #%d - your turn is in about 1 minute. Please head to the shop now.', $ticket->number));
+                    $this->notify($ticket, sprintf('Heads up! Queue %s - your turn is in about 1 minute. Please head to the shop now.', $ticket->display_number));
                     $ticket->update(['reminded_at' => now()]);
                     $sent++;
                 }

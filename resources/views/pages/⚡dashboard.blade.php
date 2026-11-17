@@ -34,6 +34,32 @@ new #[Layout('layouts::app')] #[Title('Staff dashboard')] class extends Componen
         $queue->cancel(QueueTicket::findOrFail($ticketId));
     }
 
+    public bool $showAddBarber = false;
+
+    public string $barberName = '';
+
+    public function openAddBarber(): void
+    {
+        $this->reset('barberName');
+        $this->resetValidation();
+        $this->showAddBarber = true;
+    }
+
+    public function closeAddBarber(): void
+    {
+        $this->showAddBarber = false;
+    }
+
+    public function addBarber(): void
+    {
+        $this->validate(['barberName' => 'required|string|max:60']);
+
+        $barber = Barber::create(['name' => trim($this->barberName)]);
+
+        $this->showAddBarber = false;
+        $this->dispatch('toast', message: "{$barber->name} added and ready to take customers.");
+    }
+
     public function toggleBarber(int $barberId): void
     {
         $barber = Barber::findOrFail($barberId);
@@ -63,10 +89,13 @@ new #[Layout('layouts::app')] #[Title('Staff dashboard')] class extends Componen
                 <p class="eyebrow mb-2">Live queue</p>
                 <h1 class="display text-4xl">Today's chairs</h1>
             </div>
+            <div class="flex flex-wrap items-center gap-3">
+            <button wire:click="openAddBarber" class="btn-secondary">+ Add barber</button>
             <div class="grid grid-cols-3 gap-3 text-center">
                 <div class="card-flat px-5"><p class="display text-3xl text-brass-400">{{ $waiting->count() }}</p><p class="text-xs uppercase tracking-wider text-muted">Waiting</p></div>
                 <div class="card-flat px-5"><p class="display text-3xl text-ok">{{ $servedToday }}</p><p class="text-xs uppercase tracking-wider text-muted">Served</p></div>
                 <div class="card-flat px-5"><p class="display text-3xl text-bad">{{ $burnedToday }}</p><p class="text-xs uppercase tracking-wider text-muted">Burned</p></div>
+            </div>
             </div>
         </div>
 
@@ -85,12 +114,12 @@ new #[Layout('layouts::app')] #[Title('Staff dashboard')] class extends Componen
 
                     @if ($ticket)
                         <div class="flex items-center gap-5">
-                            <p class="display text-6xl leading-none text-brass-400">#{{ $ticket->number }}</p>
+                            <p class="display text-6xl leading-none text-brass-400">{{ $ticket->display_number }}</p>
                             <div class="min-w-0 text-sm">
                                 <p class="truncate font-semibold">{{ $ticket->customer->name ?? 'Walk-in' }}</p>
                                 <p class="truncate text-muted">{{ $ticket->customer->phone }}</p>
                                 <p class="mt-1 text-muted">{{ $ticket->customer->points }}/{{ \App\Models\Customer::POINTS_FOR_FREE_CUT }} pts
-                                    @if ($called) &middot; <span class="text-ok">arrive by {{ $ticket->call_expires_at->format('H:i:s') }}</span> @endif</p>
+                                    @if ($called) &middot; <span class="text-ok">arrive by {{ $ticket->call_expires_at->format('g:i:s A') }}</span> @endif</p>
                             </div>
                         </div>
                         <div class="flex flex-wrap gap-2">
@@ -117,7 +146,7 @@ new #[Layout('layouts::app')] #[Title('Staff dashboard')] class extends Componen
             <h2 class="display text-2xl">Waiting <span class="text-muted">({{ $waiting->count() }})</span></h2>
             @forelse ($waiting as $ticket)
                 <div wire:key="t-{{ $ticket->id }}" class="card-flat flex items-center gap-4">
-                    <span class="display w-16 text-3xl text-brass-400">#{{ $ticket->number }}</span>
+                    <span class="display w-16 text-3xl text-brass-400">{{ $ticket->display_number }}</span>
                     <div class="min-w-0 flex-1">
                         <p class="truncate font-semibold">{{ $ticket->customer->name ?: 'Walk-in' }} <span class="font-normal text-muted">&middot; {{ $ticket->customer->phone }}</span></p>
                         @if ($ticket->customer->hasFreeCutAvailable()) <span class="badge-brass mt-1">Free cut ready</span> @endif
@@ -132,4 +161,25 @@ new #[Layout('layouts::app')] #[Title('Staff dashboard')] class extends Componen
             @endforelse
         </section>
     </main>
+
+    @if ($showAddBarber)
+        <div class="fixed inset-0 z-40 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" wire:click.self="closeAddBarber" wire:keydown.escape.window="closeAddBarber">
+            <form wire:submit="addBarber" class="card w-full max-w-sm space-y-5 p-6">
+                <div>
+                    <p class="eyebrow mb-1">New team member</p>
+                    <h2 class="display text-2xl">Add a barber</h2>
+                    <p class="mt-1 text-sm text-muted">They appear on the queue right away and can be called in for the next customer.</p>
+                </div>
+                <div>
+                    <label class="label" for="barberName">Name</label>
+                    <input id="barberName" wire:model="barberName" class="input" placeholder="e.g. Hakim" autofocus x-init="$el.focus()">
+                    @error('barberName') <p class="error">{{ $message }}</p> @enderror
+                </div>
+                <div class="flex gap-3">
+                    <button type="button" wire:click="closeAddBarber" class="btn-secondary flex-1">Cancel</button>
+                    <button class="btn-primary flex-1">Add barber</button>
+                </div>
+            </form>
+        </div>
+    @endif
 </div>

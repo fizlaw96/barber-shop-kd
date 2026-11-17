@@ -34,6 +34,19 @@ class QueueTicket extends Model
     }
 
     /**
+     * Queue numbers restart at 001 each day and are shown with at least 3 digits.
+     */
+    public static function formatNumber(int $number): string
+    {
+        return str_pad((string) $number, 3, '0', STR_PAD_LEFT);
+    }
+
+    public function getDisplayNumberAttribute(): string
+    {
+        return self::formatNumber($this->number);
+    }
+
+    /**
      * @return BelongsTo<Customer, $this>
      */
     public function customer(): BelongsTo

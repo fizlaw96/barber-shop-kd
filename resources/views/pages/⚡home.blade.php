@@ -16,8 +16,9 @@ new #[Layout('layouts::app')] #[Title('KD Barber Shop')] class extends Component
             'services' => Service::where('is_active', true)->orderBy('price')->get(),
             'barbers' => Barber::orderBy('name')->get(),
             'closures' => ShopClosure::whereDate('closed_on', '>=', today())->orderBy('closed_on')->limit(5)->get(),
-            'open' => app(\App\Services\ShopSettings::class)->openTime(),
-            'close' => app(\App\Services\ShopSettings::class)->closeTime(),
+            'open' => \Carbon\CarbonImmutable::parse(app(\App\Services\ShopSettings::class)->openTime())->format('g:i A'),
+            'close' => \Carbon\CarbonImmutable::parse(app(\App\Services\ShopSettings::class)->closeTime())->format('g:i A'),
+            'weeklyClosed' => collect(app(\App\Services\ShopSettings::class)->weeklyClosedDays())->map(fn (int $d) => \Carbon\CarbonImmutable::now()->startOfWeek()->addDays(($d + 6) % 7)->format('l'))->all(),
         ];
     }
 };
@@ -49,6 +50,9 @@ new #[Layout('layouts::app')] #[Title('KD Barber Shop')] class extends Component
                 <p class="display text-4xl">{{ $open }} &ndash; {{ $close }}</p>
                 @if ($closedToday)
                     <p class="text-sm text-bad">{{ $closedToday }}</p>
+                @endif
+                @if ($weeklyClosed)
+                    <p class="text-sm text-muted">Closed every {{ implode(', ', $weeklyClosed) }}.</p>
                 @endif
                 @if ($closures->isNotEmpty())
                     <div class="border-t border-ink-700 pt-4">

@@ -39,15 +39,24 @@ class ShopSettings
     }
 
     /**
-     * @param  array{open_time: string, close_time: string, minutes_per_cut: int, weekly_closed_days: array<int, int>}  $values
+     * @param  array{open_time: string, close_time: string, minutes_per_cut: int}  $values
      */
     public function save(array $values): void
     {
-        $values['weekly_closed_days'] = implode(',', $values['weekly_closed_days']);
-
         foreach ($values as $key => $value) {
             Setting::updateOrCreate(['key' => $key], ['value' => (string) $value]);
         }
+    }
+
+    /**
+     * @param  array<int, int>  $days  Carbon day numbers (0 = Sunday)
+     */
+    public function setWeeklyClosedDays(array $days): void
+    {
+        $days = array_values(array_unique(array_map('intval', $days)));
+        sort($days);
+
+        Setting::updateOrCreate(['key' => 'weekly_closed_days'], ['value' => implode(',', $days)]);
     }
 
     private function value(string $key, string|int $default): string
