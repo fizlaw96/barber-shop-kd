@@ -29,10 +29,21 @@ new #[Layout('layouts::app')] #[Title('Book online')] class extends Component {
 
     public ?int $bookingId = null;
 
-    public function mount(): void
+    public function mount(BookingService $bookings): void
     {
-        $this->date = today()->toDateString();
         $this->serviceId = Service::where('is_active', true)->orderBy('price')->value('id');
+        $this->date = today()->toDateString();
+
+        $service = $this->serviceId ? Service::find($this->serviceId) : null;
+        if ($service) {
+            foreach (range(0, 14) as $offset) {
+                $day = today()->addDays($offset);
+                if ($bookings->availableSlots($day, $service)->isNotEmpty()) {
+                    $this->date = $day->toDateString();
+                    break;
+                }
+            }
+        }
     }
 
     public function updated(string $property): void
@@ -97,76 +108,106 @@ new #[Layout('layouts::app')] #[Title('Book online')] class extends Component {
     }
 };
 ?>
+<div>
+    <x-site-header />
 
-<main class="mx-auto max-w-lg space-y-6 p-6">
-    <a href="{{ route('home') }}" wire:navigate class="text-sm text-neutral-400">&larr; Back</a>
-    <h1 class="text-3xl font-bold">Book a cut</h1>
+    <main class="mx-auto max-w-2xl px-5 py-12">
+        <p class="eyebrow mb-3">Online booking</p>
+        <h1 class="display mb-8 text-4xl">Book a chair</h1>
 
-    @if ($booking)
-        <section class="space-y-2 rounded-2xl bg-neutral-900 p-6 text-center">
-            <p class="text-2xl font-bold text-green-400">You're booked!</p>
-            <p>{{ $booking->service->name }} with {{ $booking->barber->name }}</p>
-            <p class="text-xl font-semibold">{{ $booking->starts_at->format('D j M Y, g:i A') }}</p>
-            <p class="text-sm text-neutral-400">A WhatsApp confirmation was sent. We hold your slot for {{ config('queue_shop.booking.grace_minutes') }} minutes after the start time.</p>
-        </section>
-    @else
-        <form wire:submit="submit" class="space-y-4 rounded-2xl bg-neutral-900 p-6">
-            <div>
-                <label class="mb-1 block text-sm text-neutral-400">Service</label>
-                <select wire:model.live="serviceId" class="w-full rounded-lg bg-neutral-800 p-3">
-                    @foreach ($services as $service)
-                        <option wire:key="s-{{ $service->id }}" value="{{ $service->id }}">{{ $service->name }} - RM {{ number_format($service->price, 2) }} ({{ $service->duration_minutes }} min)</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="mb-1 block text-sm text-neutral-400">Barber</label>
-                <select wire:model.live="barberId" class="w-full rounded-lg bg-neutral-800 p-3">
-                    <option value="">Any barber (assigned for you)</option>
-                    @foreach ($barbers as $barber)
-                        <option wire:key="b-{{ $barber->id }}" value="{{ $barber->id }}">{{ $barber->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label class="mb-1 block text-sm text-neutral-400">Date</label>
-                <input type="date" wire:model.live="date" min="{{ today()->toDateString() }}" max="{{ $maxDate }}" class="w-full rounded-lg bg-neutral-800 p-3">
-                @error('date') <p class="mt-1 text-sm text-red-400">{{ $message }}</p> @enderror
-            </div>
-
-            @if ($closedReason)
-                <p class="rounded-lg bg-red-500/15 p-3 text-red-300">We're closed on this day: {{ $closedReason }}. Please pick another date.</p>
-            @else
-                <div>
-                    <label class="mb-1 block text-sm text-neutral-400">Time</label>
-                    <div class="grid grid-cols-4 gap-2">
-                        @forelse ($slots as $slot)
-                            <button type="button" wire:key="slot-{{ $slot->format('Hi') }}" wire:click="$set('time', '{{ $slot->format('H:i') }}')"
-                                class="rounded-lg p-2 text-sm {{ $time === $slot->format('H:i') ? 'bg-amber-400 font-bold text-black' : 'bg-neutral-800' }}">{{ $slot->format('g:i A') }}</button>
-                        @empty
-                            <p class="col-span-4 text-sm text-neutral-500">No free times on this day.</p>
-                        @endforelse
+        @if ($booking)
+            <section class="card space-y-4 p-8 text-center">
+                <span class="mx-auto grid size-16 place-items-center rounded-full bg-ok/15 text-3xl text-ok">&#10003;</span>
+                <h2 class="display text-3xl">You're booked!</h2>
+                <p class="text-muted">{{ $booking->service->name }} with {{ $booking->barber->name }}</p>
+                <p class="display text-4xl text-brass-400">{{ $booking->starts_at->format('g:i A') }}</p>
+                <p class="text-lg">{{ $booking->starts_at->format('l, j F Y') }}</p>
+                <p class="mx-auto max-w-sm text-sm text-muted">A WhatsApp confirmation is on its way. We hold your slot for {{ config('queue_shop.booking.grace_minutes') }} minutes after the start time.</p>
+                <a href="{{ route('home') }}" wire:navigate class="btn-secondary">Back to home</a>
+            </section>
+        @else
+            <form wire:submit="submit" class="space-y-6">
+                <section class="card space-y-4">
+                    <h2 class="flex items-center gap-3 font-semibold"><span class="grid size-7 place-items-center rounded-full bg-brass-400 text-sm text-ink-950">1</span> Service &amp; barber</h2>
+                    <div>
+                        <label class="label">Service</label>
+                        <select wire:model.live="serviceId" class="input">
+                            @foreach ($services as $service)
+                                <option wire:key="s-{{ $service->id }}" value="{{ $service->id }}">{{ $service->name }} &middot; RM{{ rtrim(rtrim(number_format($service->price, 2), '0'), '.') }} &middot; {{ $service->duration_minutes }} min</option>
+                            @endforeach
+                        </select>
                     </div>
-                    @error('time') <p class="mt-1 text-sm text-red-400">{{ $message }}</p> @enderror
-                </div>
-            @endif
+                    <div>
+                        <label class="label">Barber</label>
+                        <select wire:model.live="barberId" class="input">
+                            <option value="">Any barber (we'll pick for you)</option>
+                            @foreach ($barbers as $barber)
+                                <option wire:key="b-{{ $barber->id }}" value="{{ $barber->id }}">{{ $barber->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </section>
 
-            <div>
-                <input wire:model="name" placeholder="Your name" class="w-full rounded-lg bg-neutral-800 p-3">
-                @error('name') <p class="mt-1 text-sm text-red-400">{{ $message }}</p> @enderror
-            </div>
-            <div>
-                <input wire:model="phone" type="tel" placeholder="WhatsApp number e.g. 60123456789" class="w-full rounded-lg bg-neutral-800 p-3">
-                @error('phone') <p class="mt-1 text-sm text-red-400">{{ $message }}</p> @enderror
-            </div>
-            @if ($awaitingCode)
-                <div>
-                    <input wire:model="code" inputmode="numeric" maxlength="6" placeholder="6-digit WhatsApp code" class="w-full rounded-lg bg-neutral-800 p-3 tracking-widest">
-                    @error('code') <p class="mt-1 text-sm text-amber-300">{{ $message }}</p> @enderror
-                </div>
-            @endif
-            <textarea wire:model="notes" rows="2" placeholder="Notes for the barber (style, preferences...)" class="w-full rounded-lg bg-neutral-800 p-3"></textarea>
-            <button class="w-full rounded-xl bg-amber-400 p-4 text-lg font-bold text-black">Confirm booking</button>
-        </form>
-    @endif
-</main>
+                <section class="card space-y-4">
+                    <h2 class="flex items-center gap-3 font-semibold"><span class="grid size-7 place-items-center rounded-full bg-brass-400 text-sm text-ink-950">2</span> Date &amp; time</h2>
+                    <div>
+                        <label class="label">Date</label>
+                        <input type="date" wire:model.live="date" min="{{ today()->toDateString() }}" max="{{ $maxDate }}" class="input">
+                        @error('date') <p class="error">{{ $message }}</p> @enderror
+                    </div>
+
+                    @if ($closedReason)
+                        <div class="rounded-xl border border-bad/30 bg-bad/10 p-4 text-bad">
+                            <p class="font-semibold">We're closed on this day: {{ $closedReason }}.</p>
+                            <p class="mt-1 text-sm opacity-80">Please pick another date.</p>
+                        </div>
+                    @else
+                        <div>
+                            <label class="label">Available times</label>
+                            <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                                @forelse ($slots as $slot)
+                                    <button type="button" wire:key="slot-{{ $slot->format('Hi') }}" wire:click="$set('time', '{{ $slot->format('H:i') }}')"
+                                        class="rounded-xl border px-2 py-2.5 text-sm font-semibold transition {{ $time === $slot->format('H:i') ? 'border-brass-400 bg-brass-400 text-ink-950' : 'border-ink-600 bg-ink-800 hover:border-brass-500/60' }}">{{ $slot->format('g:i A') }}</button>
+                                @empty
+                                    <p class="col-span-full text-sm text-muted">No free times on this day. Try another date or barber.</p>
+                                @endforelse
+                            </div>
+                            @error('time') <p class="error">{{ $message }}</p> @enderror
+                        </div>
+                    @endif
+                </section>
+
+                <section class="card space-y-4">
+                    <h2 class="flex items-center gap-3 font-semibold"><span class="grid size-7 place-items-center rounded-full bg-brass-400 text-sm text-ink-950">3</span> Your details</h2>
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label class="label">Name</label>
+                            <input wire:model="name" class="input" placeholder="Your name">
+                            @error('name') <p class="error">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label class="label">WhatsApp number</label>
+                            <input wire:model="phone" type="tel" class="input" placeholder="012-345 6789">
+                            @error('phone') <p class="error">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                    @if ($awaitingCode)
+                        <div>
+                            <label class="label">Verification code</label>
+                            <input wire:model="code" inputmode="numeric" maxlength="6" class="input text-center text-xl tracking-[0.5em]" placeholder="------">
+                            @error('code') <p class="hint">{{ $message }}</p> @enderror
+                        </div>
+                    @endif
+                    <div>
+                        <label class="label">Notes for your barber (optional)</label>
+                        <textarea wire:model="notes" rows="2" class="input" placeholder="Style, reference, allergies..."></textarea>
+                    </div>
+                </section>
+
+                <button class="btn-primary btn-lg w-full" wire:loading.attr="disabled">{{ $awaitingCode ? 'Verify & confirm booking' : 'Confirm booking' }}</button>
+            </form>
+        @endif
+    </main>
+
+    <x-site-footer />
+</div>

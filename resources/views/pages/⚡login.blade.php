@@ -28,13 +28,23 @@ new #[Layout('layouts::app')] #[Title('Staff login')] class extends Component {
     }
 };
 ?>
-
-<main class="mx-auto flex min-h-screen max-w-sm flex-col justify-center p-6">
-    <form wire:submit="login" class="space-y-4 rounded-2xl bg-neutral-900 p-6">
-        <h1 class="text-2xl font-bold">Staff login</h1>
-        <input wire:model="email" type="email" placeholder="Email" class="w-full rounded-lg bg-neutral-800 p-3">
-        @error('email') <p class="text-sm text-red-400">{{ $message }}</p> @enderror
-        <input wire:model="password" type="password" placeholder="Password" class="w-full rounded-lg bg-neutral-800 p-3">
-        <button class="w-full rounded-xl bg-amber-400 p-3 font-bold text-black">Sign in</button>
+<main class="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-5">
+    <div class="text-center">
+        <span class="mx-auto mb-4 grid size-16 place-items-center rounded-full border-2 border-brass-400 font-display text-2xl font-bold text-brass-400">KD</span>
+        <h1 class="display text-3xl">Staff login</h1>
+    </div>
+    <form wire:submit="login" class="card space-y-4">
+        <div>
+            <label class="label">Email</label>
+            <input wire:model="email" type="email" class="input" autocomplete="username">
+            @error('email') <p class="error">{{ $message }}</p> @enderror
+        </div>
+        <div>
+            <label class="label">Password</label>
+            <input wire:model="password" type="password" class="input" autocomplete="current-password">
+            @error('password') <p class="error">{{ $message }}</p> @enderror
+        </div>
+        <button class="btn-primary w-full">Sign in</button>
     </form>
+    <a href="{{ route('home') }}" wire:navigate class="btn-ghost mx-auto">&larr; Back to site</a>
 </main>

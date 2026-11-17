@@ -4,6 +4,142 @@
 @source '../../storage/framework/views/*.php';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Playfair Display', ui-serif, Georgia, serif;
+
+    --color-ink-950: #0d0c0b;
+    --color-ink-900: #151311;
+    --color-ink-800: #1e1b18;
+    --color-ink-700: #2a2622;
+    --color-ink-600: #3a352f;
+    --color-cream: #f5efe4;
+    --color-muted: #a39a8a;
+    --color-brass-300: #e6c786;
+    --color-brass-400: #d9ae5c;
+    --color-brass-500: #c4943a;
+    --color-brass-600: #a37722;
+    --color-pole-red: #c8443a;
+    --color-pole-blue: #3d5f9e;
+    --color-ok: #86b873;
+    --color-bad: #e0735c;
+}
+
+@layer base {
+    html {
+        color-scheme: dark;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+        @apply bg-ink-950 font-sans text-cream antialiased;
+        background-image: radial-gradient(60rem 30rem at 50% -10%, rgb(196 148 58 / 0.10), transparent 70%);
+        background-attachment: fixed;
+    }
+
+    ::selection {
+        @apply bg-brass-500 text-ink-950;
+    }
+}
+
+@utility btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brass-300 disabled:opacity-50;
+}
+
+@utility badge {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold;
+}
+
+@layer components {
+    .display {
+        @apply font-display font-bold tracking-tight;
+        font-variant-numeric: lining-nums;
+    }
+
+    .eyebrow {
+        @apply text-xs font-semibold uppercase tracking-[0.22em] text-brass-400;
+    }
+
+    .card {
+        @apply rounded-2xl border border-ink-600/60 bg-ink-900 p-5 shadow-lg shadow-black/20;
+    }
+
+    .card-flat {
+        @apply rounded-xl border border-ink-700 bg-ink-800/60 p-4;
+    }
+
+    .label {
+        @apply mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted;
+    }
+
+    .input {
+        @apply w-full rounded-xl border border-ink-600 bg-ink-800 px-4 py-3 text-base text-cream placeholder:text-muted/60 transition focus:border-brass-400 focus:outline-none focus:ring-2 focus:ring-brass-400/30;
+    }
+
+    .error {
+        @apply mt-1.5 text-sm text-bad;
+    }
+
+    .hint {
+        @apply mt-1.5 text-sm text-brass-300;
+    }
+
+
+    .btn-primary {
+        @apply btn bg-brass-400 text-ink-950 hover:bg-brass-300 active:bg-brass-500;
+    }
+
+    .btn-secondary {
+        @apply btn border border-ink-600 bg-ink-800 text-cream hover:border-brass-500/60 hover:bg-ink-700;
+    }
+
+    .btn-ok {
+        @apply btn bg-ok text-ink-950 hover:brightness-110;
+    }
+
+    .btn-danger {
+        @apply btn border border-bad/40 bg-bad/10 text-bad hover:bg-bad/20;
+    }
+
+    .btn-ghost {
+        @apply btn px-3 text-muted hover:text-cream;
+    }
+
+    .btn-lg {
+        @apply px-7 py-4 text-base;
+    }
+
+    .btn-sm {
+        @apply px-3 py-1.5 text-xs;
+    }
+
+    .badge-brass {
+        @apply badge border-brass-500/40 bg-brass-500/10 text-brass-300;
+    }
+
+    .badge-ok {
+        @apply badge border-ok/30 bg-ok/10 text-ok;
+    }
+
+    .badge-bad {
+        @apply badge border-bad/30 bg-bad/10 text-bad;
+    }
+
+    .badge-mute {
+        @apply badge border-ink-600 bg-ink-800 text-muted;
+    }
+
+    /* Barber-pole stripe used as a divider and accent */
+    .pole {
+        height: 6px;
+        background: repeating-linear-gradient(135deg, var(--color-pole-red) 0 12px, var(--color-cream) 12px 24px, var(--color-pole-blue) 24px 36px, var(--color-cream) 36px 48px);
+    }
+}
+
+@keyframes call-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgb(134 184 115 / 0.55); }
+    50% { box-shadow: 0 0 0 18px rgb(134 184 115 / 0); }
+}
+
+.calling {
+    animation: call-pulse 1.6s ease-out infinite;
 }

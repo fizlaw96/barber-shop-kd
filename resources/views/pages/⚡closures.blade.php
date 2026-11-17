@@ -37,26 +37,45 @@ new #[Layout('layouts::app')] #[Title('Closed days')] class extends Component {
     }
 };
 ?>
-
 <div>
     <x-staff-nav />
-    <main class="mx-auto max-w-2xl space-y-6 p-6">
-        <h1 class="text-3xl font-bold">Closed days</h1>
-        <p class="text-sm text-neutral-400">Customers can't book these dates, and anyone already booked is cancelled and told on WhatsApp.</p>
+    <main class="mx-auto max-w-2xl space-y-6 px-5 py-8">
+        <div>
+            <p class="eyebrow mb-2">Holidays &amp; leave</p>
+            <h1 class="display text-4xl">Closed days</h1>
+            <p class="mt-2 text-sm text-muted">Customers can't book these dates. Anyone already booked is cancelled and told on WhatsApp.</p>
+        </div>
 
-        <form wire:submit="add" class="flex flex-wrap gap-3 rounded-2xl bg-neutral-900 p-4">
-            <input type="date" wire:model="closedOn" class="rounded-lg bg-neutral-800 p-2">
-            <input wire:model="reason" placeholder="Reason (e.g. Hari Raya)" class="min-w-0 flex-1 rounded-lg bg-neutral-800 p-2">
-            <button class="rounded-lg bg-amber-400 px-4 py-2 font-bold text-black">Close shop</button>
-            @error('closedOn') <p class="w-full text-sm text-red-400">{{ $message }}</p> @enderror
-        </form>
-        @if ($result) <p class="text-green-400">{{ $result }}</p> @endif
-
-        @foreach ($closures as $closure)
-            <div wire:key="c-{{ $closure->id }}" class="flex items-center justify-between rounded-xl bg-neutral-900 p-4">
-                <span>{{ $closure->closed_on->format('D j M Y') }} &mdash; {{ $closure->reason ?: 'Closed' }}</span>
-                <button wire:click="remove({{ $closure->id }})" class="text-sm text-red-400">Remove</button>
+        <form wire:submit="add" class="card space-y-4">
+            <div class="grid gap-4 sm:grid-cols-[auto_1fr]">
+                <div>
+                    <label class="label">Date</label>
+                    <input type="date" wire:model="closedOn" class="input">
+                    @error('closedOn') <p class="error">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label class="label">Reason</label>
+                    <input wire:model="reason" placeholder="e.g. Hari Raya" class="input">
+                </div>
             </div>
-        @endforeach
+            <button class="btn-primary">Close the shop on this day</button>
+        </form>
+
+        @if ($result) <p class="badge-ok text-sm">{{ $result }}</p> @endif
+
+        <section class="space-y-2">
+            <p class="label">Upcoming</p>
+            @forelse ($closures as $closure)
+                <div wire:key="c-{{ $closure->id }}" class="card-flat flex items-center justify-between">
+                    <div>
+                        <p class="font-semibold">{{ $closure->closed_on->format('l, j F Y') }}</p>
+                        <p class="text-sm text-muted">{{ $closure->reason ?: 'Closed' }}</p>
+                    </div>
+                    <button wire:click="remove({{ $closure->id }})" class="btn-ghost btn-sm text-bad">Remove</button>
+                </div>
+            @empty
+                <div class="card-flat py-8 text-center text-muted">No closed days set.</div>
+            @endforelse
+        </section>
     </main>
 </div>

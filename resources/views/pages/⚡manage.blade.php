@@ -125,67 +125,79 @@ new #[Layout('layouts::app')] #[Title('Manage shop')] class extends Component {
     }
 };
 ?>
-
 <div>
     <x-staff-nav />
-    <main class="mx-auto max-w-3xl space-y-8 p-6">
-        <h1 class="text-3xl font-bold">Manage shop</h1>
-        @if ($message) <p class="rounded-lg bg-neutral-800 p-3 text-sm">{{ $message }}</p> @endif
+    <main class="mx-auto max-w-4xl space-y-8 px-5 py-8">
+        <div>
+            <p class="eyebrow mb-2">Settings</p>
+            <h1 class="display text-4xl">Manage shop</h1>
+        </div>
+        @if ($message) <p class="badge-brass text-sm">{{ $message }}</p> @endif
 
-        <form wire:submit="saveSettings" class="space-y-3 rounded-2xl bg-neutral-900 p-5">
-            <h2 class="text-xl font-semibold">Opening hours</h2>
-            <div class="flex flex-wrap gap-3">
-                <label class="text-sm">Open <input type="time" wire:model="openTime" class="ml-1 rounded bg-neutral-800 p-2"></label>
-                <label class="text-sm">Close <input type="time" wire:model="closeTime" class="ml-1 rounded bg-neutral-800 p-2"></label>
-                <label class="text-sm">Minutes per walk-in cut <input type="number" wire:model="minutesPerCut" class="ml-1 w-20 rounded bg-neutral-800 p-2"></label>
+        <form wire:submit="saveSettings" class="card space-y-5">
+            <h2 class="display text-2xl">Opening hours</h2>
+            <div class="grid gap-4 sm:grid-cols-3">
+                <div><label class="label">Opens</label><input type="time" wire:model="openTime" class="input"></div>
+                <div><label class="label">Closes</label><input type="time" wire:model="closeTime" class="input">@error('closeTime') <p class="error">{{ $message }}</p> @enderror</div>
+                <div><label class="label">Minutes per walk-in cut</label><input type="number" wire:model="minutesPerCut" class="input"></div>
             </div>
-            @error('closeTime') <p class="text-sm text-red-400">{{ $message }}</p> @enderror
-            <div class="flex flex-wrap gap-3 text-sm">
-                <span class="text-neutral-400">Closed every:</span>
-                @foreach (['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as $i => $day)
-                    <label wire:key="d-{{ $i }}"><input type="checkbox" wire:model="weeklyClosedDays" value="{{ $i }}"> {{ $day }}</label>
-                @endforeach
+            <div>
+                <p class="label">Closed every</p>
+                <div class="flex flex-wrap gap-2">
+                    @foreach (['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as $i => $day)
+                        <label wire:key="d-{{ $i }}" class="cursor-pointer">
+                            <input type="checkbox" wire:model="weeklyClosedDays" value="{{ $i }}" class="peer sr-only">
+                            <span class="block rounded-xl border border-ink-600 bg-ink-800 px-4 py-2 text-sm font-semibold transition peer-checked:border-bad/50 peer-checked:bg-bad/15 peer-checked:text-bad">{{ $day }}</span>
+                        </label>
+                    @endforeach
+                </div>
             </div>
-            <button class="rounded-lg bg-amber-400 px-4 py-2 font-bold text-black">Save</button>
+            <button class="btn-primary">Save hours</button>
         </form>
 
-        <section class="space-y-3 rounded-2xl bg-neutral-900 p-5">
-            <h2 class="text-xl font-semibold">Services</h2>
-            @foreach ($services as $service)
-                <div wire:key="sv-{{ $service->id }}" class="flex items-center justify-between rounded-lg bg-neutral-800 p-3 text-sm {{ $service->is_active ? '' : 'opacity-50' }}">
-                    <span>{{ $service->name }} &middot; RM {{ number_format($service->price, 2) }} &middot; {{ $service->duration_minutes }} min &middot; {{ $service->points }} pt</span>
-                    <span class="flex gap-3">
-                        <button wire:click="editService({{ $service->id }})" class="text-amber-400">Edit</button>
-                        <button wire:click="toggleService({{ $service->id }})" class="text-neutral-400">{{ $service->is_active ? 'Hide' : 'Show' }}</button>
-                    </span>
-                </div>
-            @endforeach
-            <form wire:submit="saveService" class="grid gap-2 sm:grid-cols-2">
-                <input wire:model="serviceName" placeholder="Name" class="rounded bg-neutral-800 p-2">
-                <input wire:model="servicePrice" placeholder="Price (RM)" class="rounded bg-neutral-800 p-2">
-                <input wire:model="serviceDuration" type="number" placeholder="Minutes" class="rounded bg-neutral-800 p-2">
-                <input wire:model="servicePoints" type="number" min="1" max="3" placeholder="Points (1-3)" class="rounded bg-neutral-800 p-2">
-                <input wire:model="serviceDescription" placeholder="Description" class="rounded bg-neutral-800 p-2 sm:col-span-2">
-                @foreach (['serviceName', 'servicePrice', 'serviceDuration', 'servicePoints'] as $field)
-                    @error($field) <p class="text-sm text-red-400 sm:col-span-2">{{ $message }}</p> @enderror
+        <section class="card space-y-5">
+            <h2 class="display text-2xl">Services &amp; prices</h2>
+            <div class="space-y-2">
+                @foreach ($services as $service)
+                    <div wire:key="sv-{{ $service->id }}" class="card-flat flex flex-wrap items-center gap-x-4 gap-y-1 {{ $service->is_active ? '' : 'opacity-50' }}">
+                        <span class="min-w-0 flex-1 font-semibold">{{ $service->name }}</span>
+                        <span class="display text-lg text-brass-400">RM{{ rtrim(rtrim(number_format($service->price, 2), '0'), '.') }}</span>
+                        <span class="badge-mute">{{ $service->duration_minutes }} min</span>
+                        <span class="badge-brass">{{ $service->points }} pt</span>
+                        <button wire:click="editService({{ $service->id }})" class="btn-secondary btn-sm">Edit</button>
+                        <button wire:click="toggleService({{ $service->id }})" class="btn-ghost btn-sm">{{ $service->is_active ? 'Hide' : 'Show' }}</button>
+                    </div>
                 @endforeach
-                <button class="rounded-lg bg-amber-400 px-4 py-2 font-bold text-black sm:col-span-2">{{ $serviceId ? 'Update service' : 'Add service' }}</button>
+            </div>
+
+            <form wire:submit="saveService" class="space-y-4 border-t border-ink-700 pt-5">
+                <p class="label">{{ $serviceId ? 'Edit service' : 'Add a service' }}</p>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div><label class="label">Name</label><input wire:model="serviceName" class="input">@error('serviceName') <p class="error">{{ $message }}</p> @enderror</div>
+                    <div><label class="label">Price (RM)</label><input wire:model="servicePrice" class="input">@error('servicePrice') <p class="error">{{ $message }}</p> @enderror</div>
+                    <div><label class="label">Duration (min)</label><input type="number" wire:model="serviceDuration" class="input">@error('serviceDuration') <p class="error">{{ $message }}</p> @enderror</div>
+                    <div><label class="label">Points (1-3)</label><input type="number" min="1" max="3" wire:model="servicePoints" class="input">@error('servicePoints') <p class="error">{{ $message }}</p> @enderror</div>
+                    <div class="sm:col-span-2"><label class="label">Description</label><input wire:model="serviceDescription" class="input"></div>
+                </div>
+                <button class="btn-primary">{{ $serviceId ? 'Update service' : 'Add service' }}</button>
             </form>
         </section>
 
-        <section class="space-y-3 rounded-2xl bg-neutral-900 p-5">
-            <h2 class="text-xl font-semibold">Barbers</h2>
-            @foreach ($barbers as $barber)
-                <div wire:key="br-{{ $barber->id }}" class="flex items-center justify-between rounded-lg bg-neutral-800 p-3 text-sm">
-                    <span>{{ $barber->name }}</span>
-                    <button wire:click="removeBarber({{ $barber->id }})" wire:confirm="Delete this barber?" class="text-red-400">Delete</button>
-                </div>
-            @endforeach
-            <form wire:submit="addBarber" class="flex gap-2">
-                <input wire:model="barberName" placeholder="New barber name" class="flex-1 rounded bg-neutral-800 p-2">
-                <button class="rounded-lg bg-amber-400 px-4 py-2 font-bold text-black">Add</button>
+        <section class="card space-y-4">
+            <h2 class="display text-2xl">Barbers</h2>
+            <div class="space-y-2">
+                @foreach ($barbers as $barber)
+                    <div wire:key="br-{{ $barber->id }}" class="card-flat flex items-center justify-between">
+                        <span class="font-semibold">{{ $barber->name }}</span>
+                        <button wire:click="removeBarber({{ $barber->id }})" wire:confirm="Delete this barber?" class="btn-ghost btn-sm text-bad">Delete</button>
+                    </div>
+                @endforeach
+            </div>
+            <form wire:submit="addBarber" class="flex gap-3">
+                <input wire:model="barberName" placeholder="New barber name" class="input">
+                <button class="btn-primary">Add</button>
             </form>
-            @error('barberName') <p class="text-sm text-red-400">{{ $message }}</p> @enderror
+            @error('barberName') <p class="error">{{ $message }}</p> @enderror
         </section>
     </main>
 </div>

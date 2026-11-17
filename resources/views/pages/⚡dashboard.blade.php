@@ -55,65 +55,81 @@ new #[Layout('layouts::app')] #[Title('Staff dashboard')] class extends Componen
     }
 };
 ?>
-
 <div wire:poll.3s>
-<x-staff-nav />
-<main class="mx-auto max-w-5xl space-y-8 p-6">
-    <header class="flex items-center justify-between">
-        <h1 class="text-3xl font-bold">Queue</h1>
-        <p class="text-neutral-400">Served {{ $servedToday }} &middot; Burned {{ $burnedToday }}</p>
-    </header>
+    <x-staff-nav />
+    <main class="mx-auto max-w-6xl space-y-8 px-5 py-8">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+            <div>
+                <p class="eyebrow mb-2">Live queue</p>
+                <h1 class="display text-4xl">Today's chairs</h1>
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-center">
+                <div class="card-flat px-5"><p class="display text-3xl text-brass-400">{{ $waiting->count() }}</p><p class="text-xs uppercase tracking-wider text-muted">Waiting</p></div>
+                <div class="card-flat px-5"><p class="display text-3xl text-ok">{{ $servedToday }}</p><p class="text-xs uppercase tracking-wider text-muted">Served</p></div>
+                <div class="card-flat px-5"><p class="display text-3xl text-bad">{{ $burnedToday }}</p><p class="text-xs uppercase tracking-wider text-muted">Burned</p></div>
+            </div>
+        </div>
 
-    <section class="grid gap-4 md:grid-cols-2">
-        @foreach ($barbers as $barber)
-            @php($ticket = $barber->queueTickets->first())
-            <div wire:key="barber-{{ $barber->id }}" class="space-y-3 rounded-2xl bg-neutral-900 p-5">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-xl font-semibold">{{ $barber->name }}</h2>
-                    <button wire:click="toggleBarber({{ $barber->id }})" class="rounded-full px-3 py-1 text-xs {{ $barber->is_available ? 'bg-green-500/20 text-green-300' : 'bg-neutral-700 text-neutral-400' }}">
-                        {{ $barber->is_available ? 'Available' : 'Off' }}
-                    </button>
-                </div>
-                @if ($ticket)
-                    <p class="text-4xl font-black text-amber-400">#{{ $ticket->number }}
-                        <span class="text-base font-normal text-neutral-300">{{ $ticket->customer->name ?? $ticket->customer->phone }}</span></p>
-                    <p class="text-sm text-neutral-400">Points {{ $ticket->customer->points }}/{{ \App\Models\Customer::POINTS_FOR_FREE_CUT }}
-                        @if ($ticket->status === QueueTicketStatus::Called) &middot; arrive by {{ $ticket->call_expires_at->format('H:i:s') }} @endif</p>
-                    <div class="flex flex-wrap gap-2">
-                        @if ($ticket->status === QueueTicketStatus::Called)
-                            <button wire:click="checkIn({{ $ticket->id }})" class="rounded-lg bg-green-500 px-4 py-2 font-semibold text-black">Arrived</button>
-                            <button wire:click="burn({{ $ticket->id }})" class="rounded-lg bg-red-500/80 px-4 py-2">No show</button>
-                        @else
-                            <button wire:click="complete({{ $ticket->id }}, false)" class="rounded-lg bg-amber-400 px-4 py-2 font-semibold text-black">Paid</button>
-                            @if ($ticket->customer->hasFreeCutAvailable())
-                                <button wire:click="complete({{ $ticket->id }}, true)" class="rounded-lg bg-purple-500 px-4 py-2 font-semibold">Free cut</button>
-                            @endif
-                        @endif
+        <section class="grid gap-4 md:grid-cols-2">
+            @foreach ($barbers as $barber)
+                @php($ticket = $barber->queueTickets->first())
+                @php($called = $ticket?->status === QueueTicketStatus::Called)
+                <div wire:key="barber-{{ $barber->id }}" class="card space-y-4 {{ $called ? 'border-ok/60' : '' }} {{ $barber->is_available ? '' : 'opacity-60' }}">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="grid size-10 place-items-center rounded-full bg-brass-400/15 font-display text-lg font-bold text-brass-300">{{ mb_substr($barber->name, 0, 1) }}</span>
+                            <h2 class="text-lg font-semibold">{{ $barber->name }}</h2>
+                        </div>
+                        <button wire:click="toggleBarber({{ $barber->id }})" class="{{ $barber->is_available ? 'badge-ok' : 'badge-mute' }} cursor-pointer">{{ $barber->is_available ? 'Available' : 'Off' }}</button>
                     </div>
-                @elseif ($barber->is_available)
-                    <button wire:click="callNext({{ $barber->id }})" class="w-full rounded-xl bg-amber-400 p-3 font-bold text-black">Call next</button>
-                @endif
-            </div>
-        @endforeach
-    </section>
 
-    <section class="space-y-2">
-        <h2 class="text-xl font-semibold">Waiting ({{ $waiting->count() }})</h2>
-        @forelse ($waiting as $ticket)
-            <div wire:key="t-{{ $ticket->id }}" class="flex items-center justify-between rounded-xl bg-neutral-900 p-4">
-                <div>
-                    <span class="text-2xl font-bold">#{{ $ticket->number }}</span>
-                    <span class="ml-2">{{ $ticket->customer->name ?? '' }} {{ $ticket->customer->phone }}</span>
-                    @if ($ticket->customer->hasFreeCutAvailable()) <span class="ml-2 rounded bg-purple-500/30 px-2 text-xs">free cut ready</span> @endif
+                    @if ($ticket)
+                        <div class="flex items-center gap-5">
+                            <p class="display text-6xl leading-none text-brass-400">#{{ $ticket->number }}</p>
+                            <div class="min-w-0 text-sm">
+                                <p class="truncate font-semibold">{{ $ticket->customer->name ?? 'Walk-in' }}</p>
+                                <p class="truncate text-muted">{{ $ticket->customer->phone }}</p>
+                                <p class="mt-1 text-muted">{{ $ticket->customer->points }}/{{ \App\Models\Customer::POINTS_FOR_FREE_CUT }} pts
+                                    @if ($called) &middot; <span class="text-ok">arrive by {{ $ticket->call_expires_at->format('H:i:s') }}</span> @endif</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            @if ($called)
+                                <button wire:click="checkIn({{ $ticket->id }})" class="btn-ok flex-1">Arrived</button>
+                                <button wire:click="burn({{ $ticket->id }})" class="btn-danger">No show</button>
+                            @else
+                                <button wire:click="complete({{ $ticket->id }}, false)" class="btn-primary flex-1">Paid &amp; done</button>
+                                @if ($ticket->customer->hasFreeCutAvailable())
+                                    <button wire:click="complete({{ $ticket->id }}, true)" class="btn-secondary border-brass-400/60 text-brass-300">Free cut</button>
+                                @endif
+                            @endif
+                        </div>
+                    @elseif ($barber->is_available)
+                        <button wire:click="callNext({{ $barber->id }})" class="btn-primary btn-lg w-full">Call next customer</button>
+                    @else
+                        <p class="text-sm text-muted">Not taking customers.</p>
+                    @endif
                 </div>
-                <div class="flex items-center gap-4 text-sm text-neutral-400">
-                    @isset($starts[$ticket->id]) ~{{ max(0, (int) ceil(now()->diffInSeconds($starts[$ticket->id], false) / 60)) }} min @endisset
-                    <button wire:click="cancel({{ $ticket->id }})" wire:confirm="Remove from queue?" class="text-red-400">Remove</button>
+            @endforeach
+        </section>
+
+        <section class="space-y-3">
+            <h2 class="display text-2xl">Waiting <span class="text-muted">({{ $waiting->count() }})</span></h2>
+            @forelse ($waiting as $ticket)
+                <div wire:key="t-{{ $ticket->id }}" class="card-flat flex items-center gap-4">
+                    <span class="display w-16 text-3xl text-brass-400">#{{ $ticket->number }}</span>
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate font-semibold">{{ $ticket->customer->name ?: 'Walk-in' }} <span class="font-normal text-muted">&middot; {{ $ticket->customer->phone }}</span></p>
+                        @if ($ticket->customer->hasFreeCutAvailable()) <span class="badge-brass mt-1">Free cut ready</span> @endif
+                    </div>
+                    @isset($starts[$ticket->id])
+                        <span class="badge-mute">~{{ max(0, (int) ceil(now()->diffInSeconds($starts[$ticket->id], false) / 60)) }} min</span>
+                    @endisset
+                    <button wire:click="cancel({{ $ticket->id }})" wire:confirm="Remove from queue?" class="btn-ghost btn-sm text-bad">Remove</button>
                 </div>
-            </div>
-        @empty
-            <p class="text-neutral-500">Nobody waiting.</p>
-        @endforelse
-    </section>
-</main>
+            @empty
+                <div class="card-flat py-10 text-center text-muted">Nobody waiting. Enjoy the quiet.</div>
+            @endforelse
+        </section>
+    </main>
 </div>
