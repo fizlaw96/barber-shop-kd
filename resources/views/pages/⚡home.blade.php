@@ -121,7 +121,7 @@ new #[Layout('layouts::app')] #[Title('KD Barber Shop')] class extends Component
                     <p class="eyebrow">Loyalty</p>
                     <h3 class="display text-3xl">Every {{ \App\Models\Customer::POINTS_FOR_FREE_CUT }}th cut is on us</h3>
                     <p class="text-muted">Arrive on time and earn up to 3 points per visit. Collect {{ \App\Models\Customer::POINTS_FOR_FREE_CUT }} for a free cut.</p>
-                    <a href="{{ route('my-points') }}" wire:navigate class="btn-secondary btn-sm">Check my points</a>
+                    <p class="text-sm text-brass-300">Not sure how many you have? Just ask us at the counter.</p>
                 </div>
                 <div class="flex gap-3">
                     @foreach (range(1, \App\Models\Customer::POINTS_FOR_FREE_CUT) as $stamp)

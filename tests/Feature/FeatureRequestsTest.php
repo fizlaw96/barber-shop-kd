@@ -3,6 +3,7 @@
 use App\Enums\BookingStatus;
 use App\Models\Barber;
 use App\Models\Booking;
+use App\Models\Customer;
 use App\Models\QueueTicket;
 use App\Models\Service;
 use App\Models\ShopClosure;
@@ -187,4 +188,78 @@ it('renders all manage tabs with services in a scrollable list', function () {
     Service::factory()->count(15)->create();
 
     Livewire::test('pages::manage')->assertSee('Opening hours')->assertSee('Services')->assertSee('Barbers')->assertSeeHtml('overflow-y-auto');
+});
+
+// ---- Free cut announced at registration
+
+it('flags the ticket and tells the customer when they register with a free cut earned', function () {
+    Barber::factory()->create();
+    Customer::factory()->withFreeCut()->create(['phone' => '60123456789']);
+
+    $ticket = app(QueueService::class)->join('0123456789');
+
+    expect($ticket->is_free_cut)->toBeTrue()
+        ->and(end($this->sent)[1])->toContain('FREE haircut');
+
+    Livewire::test('pages::walk-in')->set('phone', '0123456789')->call('join')->assertSee('You earned a FREE haircut');
+});
+
+it('does not flag customers who have not reached the free cut', function () {
+    $ticket = app(QueueService::class)->join('0123456789');
+
+    expect($ticket->is_free_cut)->toBeFalse()
+        ->and(end($this->sent)[1])->not->toContain('FREE');
+
+    Livewire::test('pages::walk-in')->set('phone', '0198765432')->call('join')->assertDontSee('You earned a FREE haircut');
+});
+
+it('shows staff the free cut on the dashboard and redeems it in one tap', function () {
+    $this->actingAs(User::factory()->create());
+    $barber = Barber::factory()->create();
+    $customer = Customer::factory()->withFreeCut()->create(['phone' => '60123456789']);
+    $queue = app(QueueService::class);
+    $ticket = $queue->join('0123456789');
+
+    Livewire::test('pages::dashboard')->assertSee('FREE CUT')->assertSee('tell the barber');
+
+    $queue->callNext($barber);
+    $queue->checkIn($ticket->refresh());
+
+    Livewire::test('pages::dashboard')->assertSeeHtml('Free cut &middot; done')->assertSee('Paid instead')
+        ->call('complete', $ticket->id, true);
+
+    expect($ticket->refresh()->is_free_cut)->toBeTrue()
+        ->and($customer->refresh()->free_cuts_redeemed)->toBe(1)
+        ->and($customer->points)->toBe(1); // 5 - 5 + 1 point for arriving on time
+});
+
+it('lets staff charge instead of redeeming', function () {
+    $this->actingAs(User::factory()->create());
+    $barber = Barber::factory()->create();
+    $customer = Customer::factory()->withFreeCut()->create(['phone' => '60123456789']);
+    $queue = app(QueueService::class);
+    $ticket = $queue->join('0123456789');
+    $queue->callNext($barber);
+
+    Livewire::test('pages::dashboard')->call('complete', $ticket->id, false);
+
+    expect($ticket->refresh()->is_free_cut)->toBeFalse()->and($customer->refresh()->points)->toBe(5);
+});
+
+// ---- Customers page
+
+it('lists customers with points first, highest on top, without typing', function () {
+    $this->actingAs(User::factory()->create());
+    Customer::factory()->create(['name' => 'Zero', 'points' => 0]);
+    Customer::factory()->create(['name' => 'Two', 'points' => 2]);
+    Customer::factory()->create(['name' => 'Five', 'points' => 5]);
+    Customer::factory()->create(['name' => 'Three', 'points' => 3]);
+
+    $page = Livewire::test('pages::customers')->assertSet('filter', 'points')->assertDontSee('Zero');
+
+    $page->assertSeeInOrder(['Five', 'Three', 'Two']);
+
+    $page->set('filter', 'free')->assertSee('Five')->assertDontSee('Three')
+        ->set('filter', 'all')->assertSee('Zero')
+        ->set('filter', 'points')->set('search', 'zero')->assertSee('Zero');
 });

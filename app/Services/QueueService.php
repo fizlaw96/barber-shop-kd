@@ -35,13 +35,15 @@ class QueueService
             return $existing;
         }
 
-        $ticket = $this->issueTicket($customer);
+        $earnedFreeCut = $customer->hasFreeCutAvailable();
+        $ticket = $this->issueTicket($customer, $earnedFreeCut);
 
         $this->notify($ticket, sprintf(
-            'Hi %s! Your queue number is %s. Estimated wait: about %d min. We will message you 1 minute before your turn.',
+            'Hi %s! Your queue number is %s. Estimated wait: about %d min. We will message you 1 minute before your turn.%s',
             $customer->name ?? 'there',
             $ticket->display_number,
             $this->estimatedWaitMinutes($ticket),
+            $earnedFreeCut ? ' You have earned a FREE haircut this visit - just tell your barber!' : '',
         ));
 
         return $ticket;
@@ -51,7 +53,7 @@ class QueueService
      * Next number of the day. The unique (queue_date, number) index guarantees no duplicates,
      * so a concurrent registration that loses the race simply retries with the next number.
      */
-    private function issueTicket(Customer $customer): QueueTicket
+    private function issueTicket(Customer $customer, bool $isFreeCut): QueueTicket
     {
         $attempts = 0;
 
@@ -62,6 +64,7 @@ class QueueService
                     'queue_date' => today(),
                     'number' => (int) QueueTicket::today()->max('number') + 1,
                     'status' => QueueTicketStatus::Waiting,
+                    'is_free_cut' => $isFreeCut,
                 ]));
             } catch (UniqueConstraintViolationException $e) {
                 if (++$attempts >= 5) {

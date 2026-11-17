@@ -6,7 +6,6 @@
         </a>
         <nav class="ml-auto flex items-center gap-1 text-sm font-medium text-muted sm:gap-3">
             <a href="{{ route('home') }}#services" class="hidden px-2 py-1 hover:text-cream sm:block">Services</a>
-            <a href="{{ route('my-points') }}" wire:navigate class="hidden px-2 py-1 hover:text-cream sm:block">My points</a>
             <a href="{{ route('walk-in') }}" wire:navigate class="btn-secondary btn-sm">Walk-in queue</a>
             <a href="{{ route('book') }}" wire:navigate class="btn-primary btn-sm">Book now</a>
         </nav>

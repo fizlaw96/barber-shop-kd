@@ -5,7 +5,6 @@
         <nav class="flex gap-5">
             <a href="{{ route('book') }}" wire:navigate class="hover:text-cream">Book</a>
             <a href="{{ route('walk-in') }}" wire:navigate class="hover:text-cream">Walk-in</a>
-            <a href="{{ route('my-points') }}" wire:navigate class="hover:text-cream">My points</a>
             <a href="{{ route('login') }}" wire:navigate class="hover:text-cream">Staff</a>
         </nav>
     </div>

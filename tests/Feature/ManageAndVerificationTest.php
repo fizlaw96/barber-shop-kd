@@ -82,15 +82,27 @@ it('skips verification for logged in staff', function () {
     expect(app(PhoneVerifier::class)->isVerified('0123456789'))->toBeTrue();
 });
 
-it('shows points only after verification on my-points', function () {
+it('keeps the customers page behind staff login and needs no verification', function () {
     config(['queue_shop.verify_phone' => true]);
-    Customer::factory()->create(['phone' => '60123456789', 'points' => 3]);
+    Customer::factory()->create(['phone' => '60123456789', 'name' => 'Aiman', 'points' => 3]);
 
-    $page = Livewire::test('pages::my-points')->set('phone', '0123456789')->call('lookup');
-    $page->assertSet('customerId', null);
+    $this->get(route('customers'))->assertRedirect(route('login'));
+    $this->get('/my-points')->assertNotFound();
 
-    $page->set('code', lastCode($this->sent))->call('lookup')->assertSee('3');
-    expect($page->get('customerId'))->not->toBeNull();
+    $this->actingAs(User::factory()->create());
+    $this->get(route('customers'))->assertOk()->assertSee('Aiman')->assertSee('60123456789');
+});
+
+it('searches customers by phone in any format or by name', function () {
+    $this->actingAs(User::factory()->create());
+    Customer::factory()->create(['phone' => '60123456789', 'name' => 'Aiman', 'points' => 5]);
+    Customer::factory()->create(['phone' => '60198765432', 'name' => 'Hafiz', 'points' => 1]);
+
+    Livewire::test('pages::customers')
+        ->assertSee('Aiman')->assertSee('Hafiz')->assertSee('Free cut ready')
+        ->set('search', '012-345 6789')->assertSee('Aiman')->assertDontSee('Hafiz')
+        ->set('search', 'haf')->assertSee('Hafiz')->assertDontSee('Aiman')
+        ->set('search', 'nobody')->assertSee('No customer matches');
 });
 
 it('treats local and international formats as the same customer', function () {

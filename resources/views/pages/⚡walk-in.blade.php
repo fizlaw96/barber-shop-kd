@@ -78,6 +78,13 @@ new #[Layout('layouts::app')] #[Title('Join the queue')] class extends Component
                 @endif
             </section>
 
+            @if ($ticket->is_free_cut)
+                <section class="rounded-2xl border-2 border-brass-400 bg-brass-400/15 p-6 text-center">
+                    <p class="display text-3xl text-brass-300">You earned a FREE haircut!</p>
+                    <p class="mt-1 text-sm text-cream">Tell your barber when you're called &mdash; this cut is on us.</p>
+                </section>
+            @endif
+
             <section class="card-flat flex items-center justify-between">
                 <div>
                     <p class="label mb-0">Loyalty points</p>

@@ -82,6 +82,7 @@ new #[Layout('layouts::app')] #[Title('Bookings')] class extends Component {
                     </div>
                     <div class="flex gap-2">
                         <span class="{{ $tone }}">{{ str_replace('_', ' ', $booking->status->value) }}</span>
+                        @if ($booking->customer->hasFreeCutAvailable() && $booking->status === BookingStatus::Booked)<span class="badge-ok">Free cut available</span>@endif
                         <span class="badge-mute">{{ $booking->source }}</span>
                     </div>
                 </div>

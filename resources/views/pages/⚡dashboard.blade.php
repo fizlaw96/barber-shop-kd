@@ -118,6 +118,7 @@ new #[Layout('layouts::app')] #[Title('Staff dashboard')] class extends Componen
                             <div class="min-w-0 text-sm">
                                 <p class="truncate font-semibold">{{ $ticket->customer->name ?? 'Walk-in' }}</p>
                                 <p class="truncate text-muted">{{ $ticket->customer->phone }}</p>
+                                @if ($ticket->is_free_cut)<span class="badge-ok mt-1">FREE CUT</span>@endif
                                 <p class="mt-1 text-muted">{{ $ticket->customer->points }}/{{ \App\Models\Customer::POINTS_FOR_FREE_CUT }} pts
                                     @if ($called) &middot; <span class="text-ok">arrive by {{ $ticket->call_expires_at->format('g:i:s A') }}</span> @endif</p>
                             </div>
@@ -127,9 +128,14 @@ new #[Layout('layouts::app')] #[Title('Staff dashboard')] class extends Componen
                                 <button wire:click="checkIn({{ $ticket->id }})" class="btn-ok flex-1">Arrived</button>
                                 <button wire:click="burn({{ $ticket->id }})" class="btn-danger">No show</button>
                             @else
-                                <button wire:click="complete({{ $ticket->id }}, false)" class="btn-primary flex-1">Paid &amp; done</button>
-                                @if ($ticket->customer->hasFreeCutAvailable())
-                                    <button wire:click="complete({{ $ticket->id }}, true)" class="btn-secondary border-brass-400/60 text-brass-300">Free cut</button>
+                                @if ($ticket->is_free_cut && $ticket->customer->hasFreeCutAvailable())
+                                    <button wire:click="complete({{ $ticket->id }}, true)" class="btn-ok flex-1">Free cut &middot; done</button>
+                                    <button wire:click="complete({{ $ticket->id }}, false)" class="btn-secondary">Paid instead</button>
+                                @else
+                                    <button wire:click="complete({{ $ticket->id }}, false)" class="btn-primary flex-1">Paid &amp; done</button>
+                                    @if ($ticket->customer->hasFreeCutAvailable())
+                                        <button wire:click="complete({{ $ticket->id }}, true)" class="btn-secondary border-brass-400/60 text-brass-300">Free cut</button>
+                                    @endif
                                 @endif
                             @endif
                         </div>
@@ -145,11 +151,11 @@ new #[Layout('layouts::app')] #[Title('Staff dashboard')] class extends Componen
         <section class="space-y-3">
             <h2 class="display text-2xl">Waiting <span class="text-muted">({{ $waiting->count() }})</span></h2>
             @forelse ($waiting as $ticket)
-                <div wire:key="t-{{ $ticket->id }}" class="card-flat flex items-center gap-4">
+                <div wire:key="t-{{ $ticket->id }}" class="card-flat flex items-center gap-4 {{ $ticket->is_free_cut ? 'border-brass-400/70 bg-brass-400/10' : '' }}">
                     <span class="display w-16 text-3xl text-brass-400">{{ $ticket->display_number }}</span>
                     <div class="min-w-0 flex-1">
                         <p class="truncate font-semibold">{{ $ticket->customer->name ?: 'Walk-in' }} <span class="font-normal text-muted">&middot; {{ $ticket->customer->phone }}</span></p>
-                        @if ($ticket->customer->hasFreeCutAvailable()) <span class="badge-brass mt-1">Free cut ready</span> @endif
+                        @if ($ticket->is_free_cut) <span class="badge-ok mt-1">FREE CUT &middot; tell the barber</span> @elseif ($ticket->customer->hasFreeCutAvailable()) <span class="badge-brass mt-1">Free cut ready</span> @endif
                     </div>
                     @isset($starts[$ticket->id])
                         <span class="badge-mute">~{{ max(0, (int) ceil(now()->diffInSeconds($starts[$ticket->id], false) / 60)) }} min</span>

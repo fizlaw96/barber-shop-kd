@@ -2,6 +2,7 @@
     $links = [
         ['dashboard', 'Queue'],
         ['bookings', 'Bookings'],
+        ['customers', 'Customers'],
         ['closures', 'Closed days'],
         ['manage', 'Manage'],
     ];
